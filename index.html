@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>경품 추첨기</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* 레이아웃: 추첨권 한 장이 무대. 점선 절취선 위는 추첨 화면, 아래는 조작부. 왼쪽에 명단과 경품 설정, 오른쪽에 결과. */
+:root {
+  --bg: #eef1f7;
+  --surface: #ffffff;
+  --fg: #0f1530;
+  --muted: #59627f;
+  --line: #d5dbea;
+  --accent: #3347ff;
+  --accent-ink: #ffffff;
+  --hot: #ffc933;
+  --hot-ink: #1b1500;
+  --stage-line: rgba(255, 255, 255, 0.4);
+  --font-display: "Black Han Sans", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-body: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0f1f;
+    --surface: #141a31;
+    --fg: #eef1ff;
+    --muted: #9aa4cc;
+    --line: #262f52;
+    --accent: #8392ff;
+    --accent-ink: #0b0f1f;
+    --hot: #ffd24d;
+    --hot-ink: #1b1500;
+    --stage-line: rgba(11, 15, 31, 0.4);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b0f1f;
+  --surface: #141a31;
+  --fg: #eef1ff;
+  --muted: #9aa4cc;
+  --line: #262f52;
+  --accent: #8392ff;
+  --accent-ink: #0b0f1f;
+  --hot: #ffd24d;
+  --hot-ink: #1b1500;
+  --stage-line: rgba(11, 15, 31, 0.4);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 15px/1.6 var(--font-body);
+  padding-block: 24px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+button, input, select, textarea { font: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.ticket :focus-visible { outline-color: var(--hot); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.wrap { max-width: 1080px; margin: 0 auto; }
+.top { margin-bottom: 20px; }
+h1 { margin: 0; font: 400 clamp(1.8rem, 5vw, 2.4rem)/1.15 var(--font-display); letter-spacing: -0.01em; }
+.sub { margin: 6px 0 0; color: var(--muted); }
+h2 { margin: 0; font: 700 1.05rem/1.3 var(--font-body); }
+
+.layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "stage" "setup" "results";
+}
+@media (min-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    grid-template-areas: "setup stage" "setup results";
+    align-items: start;
+  }
+}
+#setup { grid-area: setup; display: grid; gap: 16px; min-width: 0; }
+#results { grid-area: results; min-width: 0; }
+
+/* 추첨권 */
+.ticket {
+  grid-area: stage;
+  min-width: 0;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-radius: 22px;
+  position: relative;
+}
+.ticket-main { padding: 22px 22px 26px; display: grid; gap: 14px; grid-template-rows: auto 1fr auto; min-height: 310px; }
+.ticket-top { display: flex; justify-content: space-between; gap: 12px; font-size: 0.85rem; font-weight: 700; letter-spacing: 0.06em; }
+.reel {
+  display: grid; place-items: center; text-align: center;
+  font: 400 clamp(2.6rem, 10vw, 5rem)/1.1 var(--font-display);
+  overflow-wrap: anywhere; padding: 8px 0; min-width: 0;
+}
+.reel.rolling { opacity: 0.8; }
+.reel.locked { animation: pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1); }
+@keyframes pop { from { transform: scale(0.85); } to { transform: scale(1); } }
+.picked { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; min-height: 2rem; }
+.picked li { background: var(--hot); color: var(--hot-ink); font-weight: 700; border-radius: 999px; padding: 3px 13px; font-size: 0.95rem; }
+.perf { position: relative; border-top: 2px dashed var(--stage-line); margin: 0 22px; }
+.perf::before, .perf::after { content: ""; position: absolute; top: -13px; width: 28px; height: 28px; border-radius: 50%; background: var(--bg); }
+.perf::before { left: -36px; }
+.perf::after { right: -36px; }
+.ticket-stub { padding: 18px 22px 22px; display: grid; gap: 10px; }
+.ctl { display: flex; flex-wrap: wrap; gap: 10px; }
+.ctl select {
+  flex: 1 1 180px; min-width: 0; border: 0; border-radius: 12px; padding: 12px 14px;
+  background: var(--accent-ink); color: var(--accent); font-weight: 700;
+}
+.btn-draw {
+  flex: 1 1 140px; border: 0; border-radius: 12px; padding: 10px 26px; cursor: pointer;
+  background: var(--hot); color: var(--hot-ink); font: 400 1.3rem/1.3 var(--font-display);
+  transition: transform 0.12s;
+}
+.btn-draw:hover:not(:disabled) { transform: translateY(-2px); }
+.btn-draw:disabled { opacity: 0.5; cursor: default; }
+.note { margin: 0; min-height: 1.5em; font-size: 0.9rem; }
+
+/* 패널 */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.count { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.9rem; }
+.fld {
+  width: 100%; min-width: 0; color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px;
+}
+textarea.fld { resize: vertical; min-height: 11rem; line-height: 1.5; }
+.fld:disabled { opacity: 0.55; }
+.hint { margin: 8px 0 12px; color: var(--muted); font-size: 0.85rem; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 0.93rem; cursor: pointer; }
+.check input { width: 18px; height: 18px; accent-color: var(--accent); }
+.sample-note {
+  margin-bottom: 10px; padding: 8px 12px; border-radius: 10px; font-size: 0.88rem;
+  background: color-mix(in srgb, var(--hot) 28%, var(--surface));
+}
+.link { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font-weight: 500; }
+.btn { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 10px; padding: 7px 14px; font-weight: 700; cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.armed { border-color: #d6334a; color: #d6334a; }
+
+.prize-row { display: grid; grid-template-columns: minmax(0, 1fr) 112px 36px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.p-count { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.p-count .fld { width: 70px; font-variant-numeric: tabular-nums; }
+.icon-btn { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; font-size: 1.1rem; line-height: 1; }
+.icon-btn:hover:not(:disabled) { color: #d6334a; border-color: #d6334a; }
+.icon-btn:disabled { opacity: 0.4; cursor: default; }
+
+.res { padding: 12px 0; border-top: 1px solid var(--line); }
+.res:first-child { border-top: 0; padding-top: 0; }
+.res-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.res-title { font-weight: 700; }
+.res-title span { color: var(--muted); font-weight: 400; margin-left: 6px; font-variant-numeric: tabular-nums; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { background: var(--hot); color: var(--hot-ink); font-weight: 700; border-radius: 999px; padding: 3px 12px; font-size: 0.92rem; overflow-wrap: anywhere; }
+.pending { color: var(--muted); font-size: 0.9rem; }
+.res-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+#copyBox { margin-top: 10px; min-height: 6rem; }
+#resNote { margin: 10px 0 0; min-height: 1.4em; color: var(--muted); font-size: 0.88rem; }
+[inert] { opacity: 0.6; }
+#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20; }
+@media (max-width: 420px) {
+  .prize-row { grid-template-columns: minmax(0, 1fr) 100px 34px; }
+  .ticket-main { padding: 18px 16px 22px; }
+  .perf { margin: 0 16px; }
+  .perf::before { left: -30px; }
+  .perf::after { right: -30px; }
+  .ticket-stub { padding: 16px 16px 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+
+<style>:root{color-scheme:light}[hidden]{display:none!important}img{max-width:100%}</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>경품 추첨기</h1>
+    <p class="sub">명단을 붙여 넣고, 경품과 인원을 정한 뒤 추첨 버튼을 누르세요.</p>
+  </header>
+
+  <div class="layout">
+    <section class="ticket" id="ticket" aria-label="추첨 화면">
+      <div class="ticket-main">
+        <div class="ticket-top"><span id="stageLabel">추첨 대기</span><span id="stageMeta"></span></div>
+        <div class="reel" id="reel">?</div>
+        <ul class="picked" id="picked" aria-live="polite" aria-label="이번 추첨 당첨자"></ul>
+      </div>
+      <div class="perf" aria-hidden="true"></div>
+      <div class="ticket-stub">
+        <div class="ctl">
+          <label class="sr" for="prizeSel">추첨할 경품</label>
+          <select id="prizeSel"></select>
+          <button type="button" class="btn-draw" id="drawBtn">추첨하기</button>
+        </div>
+        <p class="note" id="note" role="status"></p>
+      </div>
+    </section>
+
+    <div id="setup">
+      <section class="panel" aria-labelledby="h-names">
+        <div class="panel-head"><h2 id="h-names">참가자 명단</h2><span class="count" id="nameCount">0명</span></div>
+        <div class="sample-note" id="sampleNote" hidden>예시 명단이에요. <button type="button" class="link" id="clearSample">비우고 직접 입력하기</button></div>
+        <label class="sr" for="names">참가자 이름, 한 줄에 한 명</label>
+        <textarea class="fld" id="names" spellcheck="false" placeholder="이름을 한 줄에 한 명씩 입력하거나 붙여 넣으세요"></textarea>
+        <p class="hint" id="nameHint"></p>
+        <label class="check"><input type="checkbox" id="exclude" checked> 이미 당첨된 사람은 다음 추첨에서 제외</label>
+      </section>
+
+      <section class="panel" aria-labelledby="h-prizes">
+        <div class="panel-head"><h2 id="h-prizes">경품</h2><span class="count" id="prizeTotal"></span></div>
+        <div id="prizeList"></div>
+        <button type="button" class="btn" id="addPrize">+ 경품 추가</button>
+      </section>
+    </div>
+
+    <section class="panel" id="results" aria-labelledby="h-res">
+      <div class="panel-head">
+        <h2 id="h-res">추첨 결과</h2>
+        <div class="res-actions">
+          <button type="button" class="btn" id="copyBtn">결과 복사</button>
+          <button type="button" class="btn" id="clearBtn">결과 지우기</button>
+        </div>
+      </div>
+      <div id="resList"></div>
+      <textarea class="fld" id="copyBox" readonly hidden aria-label="복사할 결과"></textarea>
+      <p id="resNote" role="status"></p>
+    </section>
+  </div>
+</div>
+<canvas id="confetti" aria-hidden="true"></canvas>
+
+<script>
+(function () {
+  'use strict';
+  var SAMPLE = ['김서연','이준호','박지민','최도윤','정하은','강민재','조예린','윤서준','장유진','임태오','한소율','오지훈','서나연','신동현','권하린','황시우','안채원','송지호','류다인','문재현'];
+  var SAMPLE_TEXT = SAMPLE.join('\n');
+  var KEY = 'raffle-app:v1';
+  var uid = 0;
+  var state = {
+    names: SAMPLE_TEXT, sample: true, exclude: true,
+    prizes: [], winners: {}, selected: null, drawing: false, lastDraw: null
+  };
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function reduced() { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function clampCount(v) { var n = parseInt(v, 10); if (!n || n < 1) return 1; return Math.min(n, 999); }
+  function newPrize(name, count) { uid += 1; return { id: uid, name: name, count: count }; }
+
+  state.prizes = [newPrize('1등', 1), newPrize('2등', 2), newPrize('3등', 3)];
+
+  /* 저장 */
+  function save() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({
+        names: state.names, sample: state.sample, exclude: state.exclude,
+        prizes: state.prizes, winners: state.winners, uid: uid
+      }));
+    } catch (e) {}
+  }
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      var d = JSON.parse(raw);
+      if (typeof d.names === 'string') state.names = d.names;
+      state.sample = !!d.sample;
+      state.exclude = d.exclude !== false;
+      if (Array.isArray(d.prizes) && d.prizes.length) {
+        state.prizes = d.prizes.map(function (p) {
+          return { id: Number(p.id) || 0, name: String(p.name || '').slice(0, 30), count: clampCount(p.count) };
+        }).filter(function (p) { return p.id > 0; });
+        if (!state.prizes.length) state.prizes = [newPrize('1등', 1)];
+      }
+      var ids = {};
+      state.prizes.forEach(function (p) { ids[p.id] = true; });
+      state.winners = {};
+      if (d.winners && typeof d.winners === 'object') {
+        Object.keys(d.winners).forEach(function (k) {
+          if (ids[k] && Array.isArray(d.winners[k]) && d.winners[k].length) {
+            state.winners[k] = d.winners[k].map(String);
+          }
+        });
+      }
+      var maxId = state.prizes.reduce(function (m, p) { return Math.max(m, p.id); }, 0);
+      uid = Math.max(Number(d.uid) || 0, maxId);
+    } catch (e) {}
+  }
+
+  /* 난수 */
+  function rnd(n) {
+    if (n <= 1) return 0;
+    try {
+      var a = new Uint32Array(1);
+      var lim = Math.floor(4294967296 / n) * n;
+      var x;
+      do { crypto.getRandomValues(a); x = a[0]; } while (x >= lim);
+      return x % n;
+    } catch (e) { return Math.floor(Math.random() * n); }
+  }
+
+  /* 후보 */
+  function entries() {
+    return state.names.split(/[\n,;\t]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+  function poolFor(pid) {
+    var list = entries();
+    if (state.exclude) {
+      var won = {};
+      Object.keys(state.winners).forEach(function (k) {
+        if (Number(k) !== pid) state.winners[k].forEach(function (n) { won[n] = true; });
+      });
+      list = list.filter(function (n) { return !won[n]; });
+    }
+    return list;
+  }
+  function pick(pid, count) {
+    var pool = poolFor(pid), out = [];
+    while (out.length < count && pool.length) {
+      var w = pool[rnd(pool.length)];
+      out.push(w);
+      pool = pool.filter(function (n) { return n !== w; });
+    }
+    return out;
+  }
+  function uniq(list) { return Array.from(new Set(list)); }
+
+  /* 안내 문구 */
+  var noteTimer = {};
+  function say(id, msg, ms) {
+    var n = $(id);
+    n.textContent = msg;
+    clearTimeout(noteTimer[id]);
+    if (msg) noteTimer[id] = setTimeout(function () { n.textContent = ''; }, ms || 5000);
+  }
+
+  /* 화면 */
+  function renderNames() {
+    var list = entries(), u = uniq(list).length, dup = list.length - u;
+    $('nameCount').textContent = u + '명';
+    $('nameHint').textContent = dup > 0
+      ? '같은 이름 ' + dup + '건이 겹쳐 있어요. 같은 사람의 응모로 보고, 응모한 횟수만큼 당첨 확률이 올라가요.'
+      : '한 줄에 한 명씩 입력하세요. 쉼표로 구분해도 돼요.';
+    $('sampleNote').hidden = !state.sample;
+  }
+
+  function renderPrizes() {
+    var box = $('prizeList');
+    box.textContent = '';
+    var total = 0;
+    state.prizes.forEach(function (p) {
+      total += p.count;
+      var done = !!state.winners[p.id];
+      var row = el('div', 'prize-row');
+      row.dataset.id = p.id;
+      var name = el('input', 'fld p-name');
+      name.type = 'text'; name.id = 'pname-' + p.id; name.value = p.name; name.maxLength = 30;
+      name.setAttribute('aria-label', '경품 이름'); name.placeholder = '경품 이름'; name.disabled = done;
+      var wrap = el('div', 'p-count');
+      var n = el('input', 'fld p-n');
+      n.type = 'number'; n.id = 'pcount-' + p.id; n.min = 1; n.max = 999; n.value = p.count;
+      n.inputMode = 'numeric'; n.setAttribute('aria-label', '당첨 인원'); n.disabled = done;
+      wrap.appendChild(n); wrap.appendChild(el('span', null, '명'));
+      var del = el('button', 'icon-btn p-del', '×');
+      del.type = 'button'; del.setAttribute('aria-label', '경품 삭제'); del.disabled = state.prizes.length <= 1;
+      row.appendChild(name); row.appendChild(wrap); row.appendChild(del);
+      box.appendChild(row);
+    });
+    $('prizeTotal').textContent = '총 ' + total + '명 추첨';
+  }
+
+  function selectedPrize() {
+    var v = Number($('prizeSel').value);
+    return state.prizes.find(function (p) { return p.id === v && !state.winners[p.id]; }) || null;
+  }
+
+  function renderSelect() {
+    var sel = $('prizeSel');
+    var prev = state.selected || Number(sel.value);
+    sel.textContent = '';
+    var pending = state.prizes.filter(function (p) { return !state.winners[p.id]; });
+    pending.forEach(function (p) {
+      var o = el('option', null, (p.name || '이름 없음') + ' · ' + p.count + '명');
+      o.value = p.id;
+      sel.appendChild(o);
+    });
+    if (!pending.length) {
+      var o = el('option', null, '모든 경품 추첨 완료');
+      o.value = '';
+      sel.appendChild(o);
+    }
+    if (pending.some(function (p) { return p.id === prev; })) sel.value = String(prev);
+    sel.disabled = !pending.length || state.drawing;
+    $('drawBtn').disabled = !pending.length || state.drawing;
+  }
+
+  function renderStageMeta() {
+    if (state.drawing) return;
+    if (state.lastDraw) {
+      $('stageLabel').textContent = state.lastDraw.name + ' 당첨';
+      $('stageMeta').textContent = state.lastDraw.n + '명';
+      return;
+    }
+    var p = selectedPrize();
+    if (p) {
+      $('stageLabel').textContent = (p.name || '이름 없음') + ' · ' + p.count + '명';
+      $('stageMeta').textContent = '후보 ' + uniq(poolFor(p.id)).length + '명';
+    } else {
+      $('stageLabel').textContent = '추첨 완료';
+      $('stageMeta').textContent = '';
+    }
+  }
+
+  function resetStage() {
+    state.lastDraw = null;
+    $('reel').textContent = '?';
+    $('reel').classList.remove('locked', 'rolling');
+    $('picked').textContent = '';
+    renderStageMeta();
+  }
+
+  function renderResults() {
+    var box = $('resList');
+    box.textContent = '';
+    state.prizes.forEach(function (p) {
+      var w = state.winners[p.id];
+      var item = el('div', 'res');
+      var head = el('div', 'res-head');
+      var title = el('div', 'res-title', p.name || '이름 없음');
+      title.appendChild(el('span', null, p.count + '명'));
+      head.appendChild(title);
+      if (w) {
+        var again = el('button', 'link redraw', '다시 추첨');
+        again.type = 'button'; again.dataset.id = p.id;
+        head.appendChild(again);
+      }
+      item.appendChild(head);
+      if (w) {
+        var chips = el('div', 'chips');
+        w.forEach(function (n) { chips.appendChild(el('span', 'chip', n)); });
+        item.appendChild(chips);
+        if (w.length < p.count) item.appendChild(el('div', 'pending', '후보가 모자라 ' + w.length + '명만 추첨했어요.'));
+      } else {
+        item.appendChild(el('div', 'pending', '아직 추첨 전이에요.'));
+      }
+      box.appendChild(item);
+    });
+  }
+
+  function renderAll() {
+    renderNames(); renderPrizes(); renderSelect(); renderStageMeta(); renderResults();
+  }
+
+  function setDrawing(on) {
+    state.drawing = on;
+    $('setup').inert = on;
+    $('results').inert = on;
+    renderSelect();
+  }
+
+  /* 추첨 연출 */
+  function roll(pool, ms) {
+    return new Promise(function (resolve) {
+      var reel = $('reel');
+      reel.classList.remove('locked');
+      if (reduced() || pool.length < 2) { setTimeout(resolve, reduced() ? 250 : ms / 2); return; }
+      reel.classList.add('rolling');
+      var t0 = performance.now(), last = '';
+      (function tick() {
+        var t = performance.now() - t0;
+        if (t >= ms) { reel.classList.remove('rolling'); resolve(); return; }
+        var n;
+        do { n = pool[rnd(pool.length)]; } while (n === last);
+        last = n;
+        reel.textContent = n;
+        var k = t / ms;
+        setTimeout(tick, 45 + k * k * 140);
+      })();
+    });
+  }
+
+  async function draw() {
+    if (state.drawing) return;
+    var prize = selectedPrize();
+    if (!prize) return;
+    if (!entries().length) { say('note', '참가자 명단이 비어 있어요. 이름을 먼저 입력해 주세요.'); return; }
+    var picks = pick(prize.id, prize.count);
+    if (!picks.length) { say('note', '남은 후보가 없어요. 제외 설정을 끄거나 명단을 추가해 주세요.'); return; }
+    var display = uniq(poolFor(prize.id));
+    say('note', '');
+    state.lastDraw = null;
+    setDrawing(true);
+    $('picked').textContent = '';
+    $('stageLabel').textContent = (prize.name || '이름 없음') + ' 추첨 중';
+    $('stageMeta').textContent = '';
+    for (var i = 0; i < picks.length; i++) {
+      await roll(display, i === 0 ? 1800 : Math.max(450, 900 - i * 25));
+      var reel = $('reel');
+      reel.textContent = picks[i];
+      reel.classList.remove('locked');
+      void reel.offsetWidth;
+      reel.classList.add('locked');
+      $('picked').appendChild(el('li', null, picks[i]));
+      if (i < picks.length - 1) await sleep(reduced() ? 100 : 250);
+    }
+    state.winners[prize.id] = picks;
+    state.lastDraw = { name: prize.name || '이름 없음', n: picks.length };
+    state.selected = null;
+    save();
+    setDrawing(false);
+    renderPrizes(); renderResults(); renderStageMeta();
+    if (picks.length < prize.count) say('note', '후보가 모자라 ' + picks.length + '명만 추첨했어요.', 8000);
+    confetti();
+  }
+
+  function confetti() {
+    if (reduced()) return;
+    var c = $('confetti'), ctx = c.getContext('2d');
+    if (!ctx) return;
+    var dpr = window.devicePixelRatio || 1;
+    var w = c.width = Math.floor(window.innerWidth * dpr);
+    var h = c.height = Math.floor(window.innerHeight * dpr);
+    var cs = getComputedStyle(document.documentElement);
+    var colors = [cs.getPropertyValue('--hot').trim(), cs.getPropertyValue('--accent').trim(), cs.getPropertyValue('--fg').trim(), '#ff5d73'];
+    var r = $('ticket').getBoundingClientRect();
+    var ox = (r.left + r.width / 2) * dpr, oy = (r.top + r.height * 0.35) * dpr;
+    var ps = [];
+    for (var i = 0; i < 90; i++) {
+      var ang = Math.random() * Math.PI * 2, sp = (4 + Math.random() * 9) * dpr;
+      ps.push({ x: ox, y: oy, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 4 * dpr, s: (4 + Math.random() * 6) * dpr, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4, col: colors[i % colors.length] });
+    }
+    var t0 = performance.now();
+    (function frame(now) {
+      var t = now - t0;
+      ctx.clearRect(0, 0, w, h);
+      if (t > 1700) return;
+      ctx.globalAlpha = Math.max(0, 1 - t / 1700);
+      ps.forEach(function (p) {
+        p.vy += 0.22 * dpr; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+        ctx.fillStyle = p.col; ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2);
+        ctx.restore();
+      });
+      requestAnimationFrame(frame);
+    })(t0);
+  }
+
+  /* 복사 */
+  function resultText() {
+    return state.prizes.filter(function (p) { return state.winners[p.id]; })
+      .map(function (p) { return '[' + (p.name || '이름 없음') + '] ' + state.winners[p.id].join(', '); }).join('\n');
+  }
+
+  /* 이벤트 */
+  $('names').addEventListener('input', function (e) {
+    state.names = e.target.value;
+    state.sample = state.names === SAMPLE_TEXT;
+    save(); renderNames(); renderStageMeta();
+  });
+  $('clearSample').addEventListener('click', function () {
+    state.names = ''; state.sample = false;
+    $('names').value = '';
+    save(); renderNames(); renderStageMeta();
+    $('names').focus();
+  });
+  $('exclude').addEventListener('change', function (e) {
+    state.exclude = e.target.checked;
+    save(); renderStageMeta();
+  });
+
+  $('prizeList').addEventListener('input', function (e) {
+    var row = e.target.closest('.prize-row');
+    if (!row) return;
+    var p = state.prizes.find(function (x) { return x.id === Number(row.dataset.id); });
+    if (!p) return;
+    if (e.target.classList.contains('p-name')) p.name = e.target.value;
+    else if (e.target.classList.contains('p-n')) p.count = clampCount(e.target.value);
+    save(); renderSelect(); renderResults(); renderStageMeta();
+    var total = state.prizes.reduce(function (s, x) { return s + x.count; }, 0);
+    $('prizeTotal').textContent = '총 ' + total + '명 추첨';
+  });
+  $('prizeList').addEventListener('change', function (e) {
+    if (!e.target.classList.contains('p-n')) return;
+    var row = e.target.closest('.prize-row');
+    var p = state.prizes.find(function (x) { return x.id === Number(row.dataset.id); });
+    if (p) e.target.value = p.count;
+  });
+  $('prizeList').addEventListener('click', function (e) {
+    var b = e.target.closest('.p-del');
+    if (!b || state.prizes.length <= 1) return;
+    var id = Number(b.closest('.prize-row').dataset.id);
+    state.prizes = state.prizes.filter(function (p) { return p.id !== id; });
+    delete state.winners[id];
+    save(); renderAll();
+  });
+  $('addPrize').addEventListener('click', function () {
+    var p = newPrize((state.prizes.length + 1) + '등', 1);
+    state.prizes.push(p);
+    save(); renderAll();
+    var inp = $('pname-' + p.id);
+    if (inp) inp.focus();
+  });
+
+  $('prizeSel').addEventListener('change', function () {
+    state.selected = Number($('prizeSel').value) || null;
+    resetStage();
+  });
+  $('drawBtn').addEventListener('click', draw);
+
+  $('resList').addEventListener('click', function (e) {
+    var b = e.target.closest('.redraw');
+    if (!b || state.drawing) return;
+    var id = Number(b.dataset.id);
+    delete state.winners[id];
+    state.selected = id;
+    save(); renderAll(); resetStage();
+    say('resNote', '당첨 결과를 지웠어요. 위에서 추첨하기를 눌러 다시 뽑으세요.');
+  });
+
+  $('copyBtn').addEventListener('click', function () {
+    var text = resultText();
+    if (!text) { say('resNote', '복사할 결과가 아직 없어요.'); return; }
+    var fallback = function () {
+      var box = $('copyBox');
+      box.hidden = false; box.value = text; box.focus(); box.select();
+      say('resNote', '자동 복사가 막혀 있어요. 위 텍스트를 직접 복사해 주세요.', 8000);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        $('copyBox').hidden = true;
+        say('resNote', '결과를 복사했어요.');
+      }, fallback);
+    } else { fallback(); }
+  });
+
+  var armTimer;
+  $('clearBtn').addEventListener('click', function () {
+    var b = $('clearBtn');
+    if (!Object.keys(state.winners).length) { say('resNote', '지울 결과가 없어요.'); return; }
+    if (!b.classList.contains('armed')) {
+      b.classList.add('armed');
+      b.textContent = '한 번 더 누르면 지워져요';
+      armTimer = setTimeout(function () { b.classList.remove('armed'); b.textContent = '결과 지우기'; }, 3000);
+      return;
+    }
+    clearTimeout(armTimer);
+    b.classList.remove('armed'); b.textContent = '결과 지우기';
+    state.winners = {}; state.selected = null;
+    $('copyBox').hidden = true;
+    save(); renderAll(); resetStage();
+    say('resNote', '모든 결과를 지웠어요.');
+  });
+
+  /* 시작 */
+  load();
+  $('names').value = state.names;
+  $('exclude').checked = state.exclude;
+  renderAll();
+})();
+</script>
+</body>
+</html>
