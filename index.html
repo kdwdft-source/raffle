@@ -69,7 +69,7 @@ button, input, select, textarea { font: inherit; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .wrap { max-width: 1080px; margin: 0 auto; }
-.top { margin-bottom: 20px; }
+.top { margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 h1 { margin: 0; font: 400 clamp(1.8rem, 5vw, 2.4rem)/1.15 var(--font-display); letter-spacing: -0.01em; }
 .sub { margin: 6px 0 0; color: var(--muted); }
 h2 { margin: 0; font: 700 1.05rem/1.3 var(--font-body); }
@@ -190,8 +190,11 @@ textarea.fld { resize: vertical; min-height: 11rem; line-height: 1.5; }
 <body>
 <div class="wrap">
   <header class="top">
-    <h1>경품 추첨기</h1>
-    <p class="sub">명단을 붙여 넣고, 경품과 인원을 정한 뒤 추첨 버튼을 누르세요.</p>
+    <div>
+      <h1>경품 추첨기</h1>
+      <p class="sub">명단을 붙여 넣고, 경품과 인원을 정한 뒤 추첨 버튼을 누르세요.</p>
+    </div>
+    <button type="button" class="btn" id="resetAll">전체 초기화</button>
   </header>
 
   <div class="layout">
@@ -670,6 +673,30 @@ textarea.fld { resize: vertical; min-height: 11rem; line-height: 1.5; }
     $('copyBox').hidden = true;
     save(); renderAll(); resetStage();
     say('resNote', '모든 결과를 지웠어요.');
+  });
+
+  var resetTimer;
+  $('resetAll').addEventListener('click', function () {
+    if (state.drawing) return;
+    var b = $('resetAll');
+    if (!b.classList.contains('armed')) {
+      b.classList.add('armed');
+      b.textContent = '한 번 더 누르면 모두 초기화돼요';
+      resetTimer = setTimeout(function () { b.classList.remove('armed'); b.textContent = '전체 초기화'; }, 3500);
+      return;
+    }
+    clearTimeout(resetTimer);
+    b.classList.remove('armed'); b.textContent = '전체 초기화';
+    uid = 0;
+    state.names = SAMPLE_TEXT; state.sample = true; state.exclude = true;
+    state.prizes = [newPrize('1등', 1), newPrize('2등', 2), newPrize('3등', 3)];
+    state.winners = {}; state.selected = null; state.lastDraw = null;
+    $('names').value = state.names;
+    $('exclude').checked = true;
+    $('copyBox').hidden = true;
+    save(); renderAll(); resetStage();
+    say('note', '');
+    say('resNote', '처음 상태로 되돌렸어요.');
   });
 
   /* 시작 */
