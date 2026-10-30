@@ -68,7 +68,7 @@ button, input, select, textarea { font: inherit; }
 .ticket :focus-visible { outline-color: var(--hot); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-.wrap { max-width: 1080px; margin: 0 auto; }
+.wrap { max-width: 1200px; margin: 0 auto; }
 .top { margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 h1 { margin: 0; font: 400 clamp(1.8rem, 5vw, 2.4rem)/1.15 var(--font-display); letter-spacing: -0.01em; }
 .sub { margin: 6px 0 0; color: var(--muted); }
@@ -80,11 +80,19 @@ h2 { margin: 0; font: 700 1.05rem/1.3 var(--font-body); }
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas: "stage" "setup" "results";
 }
-@media (min-width: 900px) {
+/* 태블릿: 추첨 화면을 위에 크게, 설정과 결과를 아래에 나란히 */
+@media (min-width: 700px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "stage stage" "setup results";
+    align-items: start;
+  }
+}
+/* 넓은 화면: 설정을 왼쪽에, 추첨 화면과 결과를 오른쪽에 */
+@media (min-width: 1100px) {
   .layout {
     grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
     grid-template-areas: "setup stage" "setup results";
-    align-items: start;
   }
 }
 #setup { grid-area: setup; display: grid; gap: 16px; min-width: 0; }
@@ -172,6 +180,32 @@ textarea.fld { resize: vertical; min-height: 11rem; line-height: 1.5; }
 #resNote { margin: 10px 0 0; min-height: 1.4em; color: var(--muted); font-size: 0.88rem; }
 [inert] { opacity: 0.6; }
 #confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20; }
+/* 태블릿: 글자와 버튼을 키워 터치하기 쉽게 */
+@media (min-width: 700px) {
+  body { font-size: 17px; padding-block: 32px 56px; }
+  h1 { font-size: 2.8rem; }
+  .sub { font-size: 1.05rem; }
+  h2 { font-size: 1.2rem; }
+  .ticket-main { padding: 28px 28px 32px; min-height: 380px; }
+  .ticket-top { font-size: 1rem; }
+  .reel { font-size: clamp(4rem, 11vw, 7.5rem); }
+  .picked li { font-size: 1.1rem; padding: 5px 16px; }
+  .perf { margin: 0 28px; }
+  .perf::before { left: -42px; }
+  .perf::after { right: -42px; }
+  .ticket-stub { padding: 22px 28px 28px; }
+  .ctl select { padding: 16px; font-size: 1.1rem; }
+  .btn-draw { padding: 14px 32px; font-size: 1.6rem; }
+  .panel { padding: 24px; }
+  .fld { padding: 12px 14px; font-size: 1rem; }
+  textarea.fld { min-height: 14rem; }
+  .btn { padding: 11px 18px; }
+  .icon-btn { width: 44px; height: 44px; }
+  .prize-row { grid-template-columns: minmax(0, 1fr) 130px 44px; }
+  .p-count .fld { width: 80px; }
+  .check input { width: 22px; height: 22px; }
+  .chip { font-size: 1.05rem; padding: 5px 14px; }
+}
 @media (max-width: 420px) {
   .prize-row { grid-template-columns: minmax(0, 1fr) 100px 34px; }
   .ticket-main { padding: 18px 16px 22px; }
